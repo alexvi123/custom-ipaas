@@ -1,0 +1,13 @@
+# Store text files with LF line endings in git, whatever the OS.
+# Without this, Windows (core.autocrlf=true) would check out backend/mvnw with CRLF
+# and the Maven wrapper would fail on Linux CI runners.
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary files: never touch line endings.
+*.png binary
+*.jpg binary
+*.ico binary

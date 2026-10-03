@@ -1,0 +1,38 @@
+# --- Secrets & personal files (never commit) ---
+.env
+.env.*
+!.env.example
+
+# --- Local-only docs: no Markdown files in the repository ---
+*.md
+.claude/
+
+# --- Backend (Maven / Java) ---
+backend/target/
+backend/HELP.md
+backend/.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# --- Frontend (Node / Vite) ---
+node_modules/
+frontend/dist/
+coverage/
+
+# --- IDEs ---
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+.apt_generated
+.sts4-cache
+
+# --- OS / logs ---
+.DS_Store
+Thumbs.db
+*.log
