@@ -1,14 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '../../test/http'
 import { HealthStatus } from './HealthStatus'
-
-function jsonResponse(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 function renderHealthStatus() {
   // A fresh client per test (no shared cache) and no retries, so failures show immediately.

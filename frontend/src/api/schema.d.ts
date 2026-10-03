@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/connectors/{key}/actions/{action}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run an action once (the "Test step" button) */
+        post: operations["test"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/connectors/{key}/actions/{action}/fields/{field}/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Load live options for a select field */
+        post: operations["options"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -21,15 +55,116 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/connectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all connectors */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/connectors/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a connector's actions and their field definitions */
+        get: operations["details"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        TestActionRequest: {
+            values: {
+                [key: string]: unknown;
+            };
+        };
+        ProblemDetail: {
+            /** Format: uri */
+            type?: string;
+            title?: string;
+            /** Format: int32 */
+            status?: number;
+            detail?: string;
+            /** Format: uri */
+            instance?: string;
+            properties?: {
+                [key: string]: unknown;
+            };
+        };
+        TestActionResponse: {
+            success: boolean;
+            output: {
+                [key: string]: unknown;
+            };
+            error?: string;
+            /** Format: int64 */
+            durationMs: number;
+        };
+        OptionsRequest: {
+            values?: {
+                [key: string]: unknown;
+            };
+        };
+        Option: {
+            value: string;
+            label: string;
+        };
         HealthReport: {
             /** @enum {string} */
             status: "UP" | "DOWN";
             /** @enum {string} */
             database: "UP" | "DOWN";
+        };
+        ConnectorSummary: {
+            key: string;
+            name: string;
+            description: string;
+        };
+        ActionDefinition: {
+            key: string;
+            name: string;
+            description: string;
+            fields: components["schemas"]["FieldDefinition"][];
+        };
+        ConnectorDetails: {
+            key: string;
+            name: string;
+            description: string;
+            actions: components["schemas"]["ActionDefinition"][];
+        };
+        FieldDefinition: {
+            key: string;
+            label: string;
+            /** @enum {string} */
+            type: "STRING" | "TEXT" | "NUMBER" | "BOOLEAN" | "SELECT" | "JSON";
+            required: boolean;
+            help?: string;
+            placeholder?: string;
+            defaultValue?: string;
+            options: components["schemas"]["Option"][];
+            dynamicOptions: boolean;
+            allowCustomValue: boolean;
+            dependsOn: string[];
         };
     };
     responses: never;
@@ -40,6 +175,97 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    test: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                action: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestActionRequest"];
+            };
+        };
+        responses: {
+            /** @description The test ran; success says whether the external app accepted it */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TestActionResponse"];
+                };
+            };
+            /** @description Input doesn't match the action's fields */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unknown connector or action */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                action: string;
+                field: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OptionsRequest"];
+            };
+        };
+        responses: {
+            /** @description The options */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Option"][];
+                };
+            };
+            /** @description Unknown connector, action or dynamic field */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The external app or the connector's configuration failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
     health: {
         parameters: {
             query?: never;
@@ -65,6 +291,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthReport"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ConnectorSummary"][];
+                };
+            };
+        };
+    };
+    details: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The connector */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ConnectorDetails"];
+                };
+            };
+            /** @description Unknown connector */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };

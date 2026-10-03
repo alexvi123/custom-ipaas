@@ -7,3 +7,16 @@ spring:
     password: ${DB_PASSWORD:ipaas}
     hikari:
       connection-timeout: 3000
+  mvc:
+    problemdetails:
+      enabled: true
+
+ipaas:
+  credentials:
+    telegram:
+      bot-token: ${TELEGRAM_BOT_TOKEN:}
+  connectors:
+    telegram:
+      base-url: https://api.telegram.org
+    http:
+      allow-private-networks: false
