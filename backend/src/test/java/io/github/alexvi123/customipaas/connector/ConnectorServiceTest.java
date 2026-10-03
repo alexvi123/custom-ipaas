@@ -12,9 +12,11 @@ import tools.jackson.databind.json.JsonMapper;
 class ConnectorServiceTest {
 
 	private ConnectorService serviceWith(Connector connector) {
-		return new ConnectorService(new ConnectorRegistry(List.of(connector)),
-				new InputValidator(JsonMapper.builder().build()),
-				new CredentialsProvider(new MockEnvironment().withProperty("ipaas.credentials.fake.token", "secret")));
+		ConnectorRegistry registry = new ConnectorRegistry(List.of(connector));
+		CredentialsProvider credentials =
+				new CredentialsProvider(new MockEnvironment().withProperty("ipaas.credentials.fake.token", "secret"));
+		ActionExecutor executor = new ActionExecutor(registry, new InputValidator(JsonMapper.builder().build()), credentials);
+		return new ConnectorService(registry, executor, credentials);
 	}
 
 	@Test
@@ -22,7 +24,7 @@ class ConnectorServiceTest {
 		TestConnectors.FakeConnector connector = TestConnectors.echo(
 				input -> ActionResult.success(Map.of("echo", input.requireString("message"))));
 
-		TestRun run = serviceWith(connector).test("fake", "echo", Map.of("message", "hi"));
+		ActionRun run = serviceWith(connector).test("fake", "echo", Map.of("message", "hi"));
 
 		assertThat(run.result().success()).isTrue();
 		assertThat(run.result().output()).containsEntry("echo", "hi");
@@ -44,7 +46,7 @@ class ConnectorServiceTest {
 			throw new ConnectorException("token not configured");
 		});
 
-		TestRun run = serviceWith(connector).test("fake", "echo", Map.of("message", "hi"));
+		ActionRun run = serviceWith(connector).test("fake", "echo", Map.of("message", "hi"));
 
 		assertThat(run.result().success()).isFalse();
 		assertThat(run.result().error()).isEqualTo("token not configured");

@@ -21,7 +21,7 @@ import io.github.alexvi123.customipaas.connector.ConnectorService;
 import io.github.alexvi123.customipaas.connector.ExecutionContext;
 import io.github.alexvi123.customipaas.connector.FieldDefinition;
 import io.github.alexvi123.customipaas.connector.InvalidInputException;
-import io.github.alexvi123.customipaas.connector.TestRun;
+import io.github.alexvi123.customipaas.connector.ActionRun;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -113,7 +113,7 @@ class ConnectorControllerTest {
 	@Test
 	void failedTestRunIsStillA200() throws Exception {
 		when(connectorService.test(eq("demo"), eq("ping"), anyMap()))
-				.thenReturn(new TestRun(ActionResult.failure("Telegram: chat not found"), 120));
+				.thenReturn(new ActionRun(ActionResult.failure("Telegram: chat not found"), 120));
 
 		mockMvc.perform(post("/api/connectors/demo/actions/ping/test")
 						.contentType(MediaType.APPLICATION_JSON)
