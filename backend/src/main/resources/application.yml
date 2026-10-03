@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: custom-ipaas
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ipaas}
+    username: ${DB_USERNAME:ipaas}
+    password: ${DB_PASSWORD:ipaas}
+    hikari:
+      connection-timeout: 3000

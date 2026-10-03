@@ -1,0 +1,24 @@
+# Local development infrastructure.
+# Start:  docker compose -f infra/docker-compose.yml up -d
+# Stop:   docker compose -f infra/docker-compose.yml down        (-v to also delete the data volume)
+name: custom-ipaas
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ipaas
+      POSTGRES_USER: ipaas
+      POSTGRES_PASSWORD: ipaas   # local dev only
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ipaas -d ipaas"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:

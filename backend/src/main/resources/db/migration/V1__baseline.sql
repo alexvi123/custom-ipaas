@@ -1,0 +1,1 @@
+-- V1: baseline. Proves Flyway runs and creates its flyway_schema_history table.
