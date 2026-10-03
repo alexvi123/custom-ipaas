@@ -37,4 +37,11 @@ public class ConnectorRegistry {
 		}
 		return connector;
 	}
+
+	public ActionDefinition action(String connectorKey, String actionKey) {
+		return get(connectorKey).actions().stream()
+				.filter(action -> action.key().equals(actionKey))
+				.findFirst()
+				.orElseThrow(() -> new ActionNotFoundException(connectorKey, actionKey));
+	}
 }
