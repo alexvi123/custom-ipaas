@@ -48,14 +48,17 @@ final class RunDtos {
 			Map<String, Object> input,
 			Map<String, Object> output,
 			String error,
+			@Schema(requiredMode = REQUIRED) int attempt,
+			Instant nextRetryAt,
 			Instant startedAt,
 			Instant finishedAt,
 			Long durationMs) {
 
 		static StepRunView from(StepRun step) {
 			return new StepRunView(step.getStepKey(), step.getPosition(), step.getConnectorKey(), step.getActionKey(),
-					step.getStatus(), step.getInput(), step.getOutput(), step.getError(), step.getStartedAt(),
-					step.getFinishedAt(), millisBetween(step.getStartedAt(), step.getFinishedAt()));
+					step.getStatus(), step.getInput(), step.getOutput(), step.getError(), step.getAttempt(),
+					step.getNextRetryAt(), step.getStartedAt(), step.getFinishedAt(),
+					millisBetween(step.getStartedAt(), step.getFinishedAt()));
 		}
 	}
 

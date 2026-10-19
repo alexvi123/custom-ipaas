@@ -26,7 +26,9 @@ public class WorkflowDefinitionValidator {
 
 	private static final Pattern STEP_KEY = Pattern.compile("[a-zA-Z][a-zA-Z0-9_]*");
 	private static final Set<String> TOP_LEVEL_KEYS = Set.of("trigger", "steps");
-	private static final Set<String> STEP_KEYS = Set.of("key", "connector", "action", "inputs");
+	private static final Set<String> STEP_KEYS = Set.of("key", "connector", "action", "inputs", "retry", "timeoutSeconds");
+	private static final int MAX_ATTEMPTS = 10;
+	private static final int MAX_TIMEOUT_SECONDS = 120;
 
 	private final ConnectorRegistry registry;
 	private final InputValidator inputValidator;
@@ -84,12 +86,41 @@ public class WorkflowDefinitionValidator {
 				validateInputs(actionDefinition, inputs, path, earlierKeys, errors);
 			}
 
+			Integer maxAttempts = maxAttempts(rawStep.get("retry"), path, errors);
+			Integer timeoutSeconds = wholeNumber(rawStep.get("timeoutSeconds"), MAX_TIMEOUT_SECONDS,
+					path + ".timeoutSeconds", errors);
+
 			if (key != null) {
-				steps.add(new StepDefinition(key, connector, action, inputs));
+				steps.add(new StepDefinition(key, connector, action, inputs, maxAttempts, timeoutSeconds));
 				earlierKeys.add(key);
 			}
 		}
 		return steps;
+	}
+
+	private static Integer maxAttempts(Object rawRetry, String path, Map<String, String> errors) {
+		if (rawRetry == null) {
+			return null;
+		}
+		if (!(rawRetry instanceof Map<?, ?> retry)) {
+			errors.put(path + ".retry", "Must be an object like {\"maxAttempts\": 3}");
+			return null;
+		}
+		retry.keySet().stream().map(Object::toString).filter(key -> !"maxAttempts".equals(key))
+				.forEach(key -> errors.put(path + ".retry." + key, "Unknown property"));
+		return wholeNumber(retry.get("maxAttempts"), MAX_ATTEMPTS, path + ".retry.maxAttempts", errors);
+	}
+
+	/** Null when absent; otherwise must be a whole number from 1 to max. */
+	private static Integer wholeNumber(Object value, int max, String path, Map<String, String> errors) {
+		if (value == null) {
+			return null;
+		}
+		if (value instanceof Integer number && number >= 1 && number <= max) {
+			return number;
+		}
+		errors.put(path, "Must be a whole number between 1 and " + max);
+		return null;
 	}
 
 	@SuppressWarnings("unchecked")

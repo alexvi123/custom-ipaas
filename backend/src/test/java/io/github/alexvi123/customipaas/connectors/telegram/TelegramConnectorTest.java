@@ -68,6 +68,27 @@ class TelegramConnectorTest {
 
 		assertThat(result.success()).isFalse();
 		assertThat(result.error()).isEqualTo("Telegram: Bad Request: chat not found");
+		assertThat(result.retryable()).isFalse();
+	}
+
+	@Test
+	void rateLimitsAndServerErrorsAreRetryable(WireMockRuntimeInfo wireMock) {
+		stubFor(post("/bottest-token/sendMessage").willReturn(aResponse().withStatus(429)
+				.withHeader("Content-Type", "application/json")
+				.withBody("{\"ok\":false,\"error_code\":429,\"description\":\"Too Many Requests: retry after 5\"}")));
+
+		ActionResult result = send(wireMock.getHttpBaseUrl(), "42", "hello");
+
+		assertThat(result.success()).isFalse();
+		assertThat(result.retryable()).isTrue();
+	}
+
+	@Test
+	void unreachableTelegramIsRetryable() {
+		ActionResult result = send("http://127.0.0.1:1", "42", "hello");
+
+		assertThat(result.error()).startsWith("Could not reach Telegram");
+		assertThat(result.retryable()).isTrue();
 	}
 
 	@Test

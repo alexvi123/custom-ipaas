@@ -100,10 +100,19 @@ public class HttpConnector implements Connector {
 			});
 
 			int status = (int) output.get("status");
-			return status >= 200 && status < 300 ? ActionResult.success(output) : ActionResult.failure("HTTP " + status, output);
+			if (status >= 200 && status < 300) {
+				return ActionResult.success(output);
+			}
+			return isTemporary(status) ? ActionResult.retryableFailure("HTTP " + status, output)
+					: ActionResult.failure("HTTP " + status, output);
 		} catch (RestClientException e) {
-			return ActionResult.failure("Request failed: " + rootCauseMessage(e));
+			return ActionResult.retryableFailure("Request failed: " + rootCauseMessage(e));
 		}
+	}
+
+	/** Timeouts, rate limits and server errors may go away on their own; other 4xx won't. */
+	private static boolean isTemporary(int status) {
+		return status == 408 || status == 429 || status >= 500;
 	}
 
 	private static Map<String, String> headers(ActionInput input) {

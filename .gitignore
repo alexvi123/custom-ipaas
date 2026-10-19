@@ -7,6 +7,9 @@
 *.md
 .claude/
 
+# --- graphify knowledge graph (local only) ---
+graphify-out/
+
 # --- Backend (Maven / Java) ---
 backend/target/
 backend/HELP.md

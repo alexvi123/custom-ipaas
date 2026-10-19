@@ -17,6 +17,12 @@ public record WorkflowDefinition(String triggerType, List<StepDefinition> steps)
 			map.put("connector", step.connector());
 			map.put("action", step.action());
 			map.put("inputs", step.inputs());
+			if (step.maxAttempts() != null) {
+				map.put("retry", Map.of("maxAttempts", step.maxAttempts()));
+			}
+			if (step.timeoutSeconds() != null) {
+				map.put("timeoutSeconds", step.timeoutSeconds());
+			}
 			return map;
 		}).toList();
 		Map<String, Object> map = new LinkedHashMap<>();
@@ -30,9 +36,11 @@ public record WorkflowDefinition(String triggerType, List<StepDefinition> steps)
 	public static WorkflowDefinition fromStored(Map<String, Object> stored) {
 		Map<String, Object> trigger = (Map<String, Object>) stored.get("trigger");
 		List<Map<String, Object>> steps = (List<Map<String, Object>>) stored.get("steps");
-		return new WorkflowDefinition((String) trigger.get("type"), steps.stream()
-				.map(step -> new StepDefinition((String) step.get("key"), (String) step.get("connector"),
-						(String) step.get("action"), (Map<String, Object>) step.get("inputs")))
-				.toList());
+		return new WorkflowDefinition((String) trigger.get("type"), steps.stream().map(step -> {
+			Map<String, Object> retry = (Map<String, Object>) step.get("retry");
+			return new StepDefinition((String) step.get("key"), (String) step.get("connector"),
+					(String) step.get("action"), (Map<String, Object>) step.get("inputs"),
+					retry == null ? null : (Integer) retry.get("maxAttempts"), (Integer) step.get("timeoutSeconds"));
+		}).toList());
 	}
 }

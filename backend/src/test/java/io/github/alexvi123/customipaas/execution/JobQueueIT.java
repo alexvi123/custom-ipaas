@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.alexvi123.customipaas.TestcontainersConfiguration;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -102,8 +103,37 @@ class JobQueueIT {
 		insertRunWithJob();
 		ClaimedJob job = jobQueue.claimNext(Duration.ofMinutes(5)).orElseThrow();
 
-		jobQueue.delete(job.id());
+		jobQueue.delete(job);
 
 		assertThat(jdbc.sql("SELECT count(*) FROM jobs").query(Long.class).single()).isZero();
+	}
+
+	@Test
+	void aWorkerWhoseLeaseWasTakenOverCanNoLongerTouchTheJob() {
+		insertRunWithJob();
+		ClaimedJob workerA = jobQueue.claimNext(Duration.ofMinutes(5)).orElseThrow();
+		jdbc.sql("UPDATE jobs SET locked_until = now() - interval '1 second'").update(); // A's lease expired
+		ClaimedJob workerB = jobQueue.claimNext(Duration.ofMinutes(5)).orElseThrow();
+
+		assertThat(workerB.attempts()).isEqualTo(workerA.attempts() + 1);
+		assertThat(jobQueue.extendLease(workerA, Duration.ofMinutes(5))).isFalse();
+		assertThat(jobQueue.extendLease(workerB, Duration.ofMinutes(5))).isTrue();
+
+		jobQueue.delete(workerA);
+		assertThat(jdbc.sql("SELECT count(*) FROM jobs").query(Long.class).single()).isOne();
+		jobQueue.delete(workerB);
+		assertThat(jdbc.sql("SELECT count(*) FROM jobs").query(Long.class).single()).isZero();
+	}
+
+	@Test
+	void aRescheduledJobWaitsUntilItsTime() {
+		UUID runId = insertRunWithJob();
+		ClaimedJob job = jobQueue.claimNext(Duration.ofMinutes(5)).orElseThrow();
+
+		jobQueue.reschedule(job, Instant.now().plusSeconds(60));
+
+		assertThat(jobQueue.claimNext(Duration.ofMinutes(5))).isEmpty();
+		jdbc.sql("UPDATE jobs SET run_at = now() - interval '1 second'").update();
+		assertThat(jobQueue.claimNext(Duration.ofMinutes(5))).map(ClaimedJob::runId).contains(runId);
 	}
 }

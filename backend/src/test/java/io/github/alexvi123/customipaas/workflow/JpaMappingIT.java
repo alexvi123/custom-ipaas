@@ -63,9 +63,9 @@ class JpaMappingIT {
 	void storesRunsAndStepRuns() {
 		Workflow workflow = workflows.save(new Workflow("Demo", "token-2", NOW));
 		WorkflowVersion version = versions.save(new WorkflowVersion(workflow.getId(), 1, Map.of("steps", List.of()), NOW));
-		Run run = runs.save(new Run(workflow.getId(), version.getId(), Map.of("body", Map.of("name", "Alex")), NOW));
+		Run run = runs.save(new Run(workflow.getId(), version.getId(), Map.of("body", Map.of("name", "Alex")), "delivery-1", NOW));
 		StepRun step = stepRuns.save(new StepRun(run.getId(), "notify", 0, "telegram", "sendMessage"));
-		step.start(Map.of("text", "hello"), NOW);
+		step.start(Map.of("text", "hello"), 2, NOW);
 		step.finish(StepStatus.SUCCEEDED, Map.of("messageId", 7), null, NOW);
 		entityManager.flush();
 		entityManager.clear();
@@ -77,10 +77,13 @@ class JpaMappingIT {
 		assertThat(recent).singleElement().satisfies(r -> {
 			assertThat(r.getStatus()).isEqualTo(RunStatus.PENDING);
 			assertThat(r.getTriggerPayload()).isEqualTo(Map.of("body", Map.of("name", "Alex")));
+			assertThat(r.getDedupeKey()).isEqualTo("delivery-1");
 		});
+		assertThat(runs.findByWorkflowIdAndDedupeKey(workflow.getId(), "delivery-1")).isPresent();
 		assertThat(steps).singleElement().satisfies(s -> {
 			assertThat(s.getStatus()).isEqualTo(StepStatus.SUCCEEDED);
 			assertThat(s.getOutput()).isEqualTo(Map.of("messageId", 7));
+			assertThat(s.getAttempt()).isEqualTo(2);
 		});
 	}
 }

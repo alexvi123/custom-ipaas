@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type RunStatus } from '../../api/client'
 import { problemDetail } from '../../api/problems'
 
@@ -28,6 +28,22 @@ export function useRun(id: string | undefined) {
       const { data, error, response } = await api.GET('/api/runs/{id}', { params: { path: { id: id ?? '' } } })
       if (!data) throw new Error(problemDetail(error) ?? `Could not load run (${response.status})`)
       return data
+    },
+  })
+}
+
+/** Puts a failed run back in the queue; it continues from the failed step. */
+export function useRetryRun(runId: string, workflowId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error, response } = await api.POST('/api/runs/{id}/retry', { params: { path: { id: runId } } })
+      if (!data) throw new Error(problemDetail(error) ?? `Could not retry (${response.status})`)
+      return data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['run', runId] })
+      void queryClient.invalidateQueries({ queryKey: ['runs', workflowId] })
     },
   })
 }

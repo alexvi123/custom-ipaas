@@ -2,6 +2,7 @@ package io.github.alexvi123.customipaas.connectors.http;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.anyRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.anyUrl;
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.created;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
@@ -67,6 +68,20 @@ class HttpConnectorTest {
 		assertThat(result.success()).isFalse();
 		assertThat(result.error()).isEqualTo("HTTP 404");
 		assertThat(result.output()).containsEntry("status", 404);
+		assertThat(result.retryable()).isFalse();
+	}
+
+	@Test
+	void serverErrorsAndRateLimitsAreRetryable(WireMockRuntimeInfo wireMock) {
+		stubFor(get("/down").willReturn(aResponse().withStatus(503)));
+		stubFor(get("/busy").willReturn(aResponse().withStatus(429)));
+
+		ActionResult down = run(true, Map.of("method", "GET", "url", wireMock.getHttpBaseUrl() + "/down"));
+		ActionResult busy = run(true, Map.of("method", "GET", "url", wireMock.getHttpBaseUrl() + "/busy"));
+
+		assertThat(down.retryable()).isTrue();
+		assertThat(down.error()).isEqualTo("HTTP 503");
+		assertThat(busy.retryable()).isTrue();
 	}
 
 	@Test
@@ -75,6 +90,7 @@ class HttpConnectorTest {
 
 		assertThat(result.success()).isFalse();
 		assertThat(result.error()).startsWith("Request failed");
+		assertThat(result.retryable()).isTrue();
 	}
 
 	@Test
@@ -83,6 +99,7 @@ class HttpConnectorTest {
 
 		assertThat(result.success()).isFalse();
 		assertThat(result.error()).contains("Blocked");
+		assertThat(result.retryable()).isFalse();
 		verify(0, anyRequestedFor(anyUrl()));
 	}
 

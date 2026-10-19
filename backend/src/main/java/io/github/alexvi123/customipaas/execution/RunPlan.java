@@ -7,6 +7,8 @@ import java.util.UUID;
 
 public record RunPlan(UUID runId, UUID workflowId, Map<String, Object> trigger, List<PlannedStep> steps) {
 
-	public record PlannedStep(UUID stepRunId, StepDefinition definition) {
+	/** A step plus what happened to it so far, so a resumed run can skip what already succeeded. */
+	public record PlannedStep(UUID stepRunId, StepDefinition definition, StepStatus status, int attempt,
+			Map<String, Object> output) {
 	}
 }

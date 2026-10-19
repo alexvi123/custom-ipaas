@@ -114,7 +114,7 @@ public class TelegramConnector implements Connector {
 			output.put("chatId", message.path("chat").path("id").asLong());
 			return ActionResult.success(output);
 		} catch (ConnectorException e) {
-			return ActionResult.failure(e.getMessage());
+			return e.isRetryable() ? ActionResult.retryableFailure(e.getMessage()) : ActionResult.failure(e.getMessage());
 		}
 	}
 
@@ -148,11 +148,12 @@ public class TelegramConnector implements Connector {
 				return root.path("result");
 			}
 			String description = root.path("description").asString("unknown error");
+			int errorCode = root.path("error_code").asInt(0);
 			log.warn("Telegram {} failed: {}", method, description);
-			throw new ConnectorException("Telegram: " + description);
+			throw new ConnectorException("Telegram: " + description, errorCode == 429 || errorCode >= 500);
 		} catch (RestClientException e) {
 			log.warn("Telegram {} could not be reached: {}", method, rootCause(e).getClass().getSimpleName());
-			throw new ConnectorException("Could not reach Telegram (" + rootCause(e).getClass().getSimpleName() + ")");
+			throw new ConnectorException("Could not reach Telegram (" + rootCause(e).getClass().getSimpleName() + ")", true);
 		} catch (JacksonException e) {
 			throw new ConnectorException("Telegram returned an unexpected response");
 		}

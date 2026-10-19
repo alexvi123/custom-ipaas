@@ -6,6 +6,7 @@ export const starterDefinition = {
       connector: 'http',
       action: 'request',
       inputs: { method: 'GET', url: 'https://httpbin.org/get?name={{trigger.body.name}}' },
+      retry: { maxAttempts: 3 },
     },
     {
       key: 'notify',

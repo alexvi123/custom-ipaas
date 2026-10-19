@@ -50,6 +50,12 @@ public class StepRun {
 
 	private String error;
 
+	@Column(nullable = false)
+	private int attempt;
+
+	@Column(name = "next_retry_at")
+	private Instant nextRetryAt;
+
 	@Column(name = "started_at")
 	private Instant startedAt;
 
@@ -68,21 +74,47 @@ public class StepRun {
 		this.status = StepStatus.PENDING;
 	}
 
-	public void start(Map<String, Object> input, Instant now) {
+	public void start(Map<String, Object> input, int attempt, Instant now) {
 		this.status = StepStatus.RUNNING;
 		this.input = input;
+		this.attempt = attempt;
+		this.output = null;
+		this.error = null;
+		this.nextRetryAt = null;
 		this.startedAt = now;
+		this.finishedAt = null;
 	}
 
 	public void finish(StepStatus finalStatus, Map<String, Object> output, String error, Instant now) {
 		this.status = finalStatus;
 		this.output = output;
 		this.error = error;
+		this.nextRetryAt = null;
+		this.finishedAt = now;
+	}
+
+	public void waitForRetry(Map<String, Object> output, String error, Instant retryAt, Instant now) {
+		this.status = StepStatus.WAITING_RETRY;
+		this.output = output;
+		this.error = error;
+		this.nextRetryAt = retryAt;
 		this.finishedAt = now;
 	}
 
 	public void skip() {
 		this.status = StepStatus.SKIPPED;
+	}
+
+	/** Back to a fresh, never-run step (manual retry). */
+	public void reset() {
+		this.status = StepStatus.PENDING;
+		this.attempt = 0;
+		this.input = null;
+		this.output = null;
+		this.error = null;
+		this.nextRetryAt = null;
+		this.startedAt = null;
+		this.finishedAt = null;
 	}
 
 	public UUID getId() {
@@ -123,6 +155,14 @@ public class StepRun {
 
 	public String getError() {
 		return error;
+	}
+
+	public int getAttempt() {
+		return attempt;
+	}
+
+	public Instant getNextRetryAt() {
+		return nextRetryAt;
 	}
 
 	public Instant getStartedAt() {

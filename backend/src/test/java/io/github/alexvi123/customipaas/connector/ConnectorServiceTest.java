@@ -3,6 +3,7 @@ package io.github.alexvi123.customipaas.connector;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -16,7 +17,7 @@ class ConnectorServiceTest {
 		CredentialsProvider credentials =
 				new CredentialsProvider(new MockEnvironment().withProperty("ipaas.credentials.fake.token", "secret"));
 		ActionExecutor executor = new ActionExecutor(registry, new InputValidator(JsonMapper.builder().build()), credentials);
-		return new ConnectorService(registry, executor, credentials);
+		return new ConnectorService(registry, executor, credentials, Duration.ofSeconds(5));
 	}
 
 	@Test
