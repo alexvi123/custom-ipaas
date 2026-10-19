@@ -39,6 +39,9 @@ public class Run {
 
 	private String error;
 
+	@Column(name = "dedupe_key", updatable = false)
+	private String dedupeKey;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
@@ -51,10 +54,12 @@ public class Run {
 	protected Run() {
 	}
 
-	public Run(UUID workflowId, UUID workflowVersionId, Map<String, Object> triggerPayload, Instant now) {
+	public Run(UUID workflowId, UUID workflowVersionId, Map<String, Object> triggerPayload, String dedupeKey,
+			Instant now) {
 		this.workflowId = workflowId;
 		this.workflowVersionId = workflowVersionId;
 		this.triggerPayload = triggerPayload;
+		this.dedupeKey = dedupeKey;
 		this.status = RunStatus.PENDING;
 		this.createdAt = now;
 	}
@@ -68,6 +73,14 @@ public class Run {
 		this.status = finalStatus;
 		this.error = error;
 		this.finishedAt = now;
+	}
+
+	/** Puts a failed run back in the queue (manual retry). */
+	public void requeue() {
+		this.status = RunStatus.PENDING;
+		this.error = null;
+		this.startedAt = null;
+		this.finishedAt = null;
 	}
 
 	public UUID getId() {
@@ -92,6 +105,10 @@ public class Run {
 
 	public String getError() {
 		return error;
+	}
+
+	public String getDedupeKey() {
+		return dedupeKey;
 	}
 
 	public Instant getCreatedAt() {

@@ -3,6 +3,7 @@ package io.github.alexvi123.customipaas.api;
 import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 
 import io.github.alexvi123.customipaas.trigger.InvalidPayloadException;
+import io.github.alexvi123.customipaas.trigger.WebhookResult;
 import io.github.alexvi123.customipaas.trigger.WebhookService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -34,8 +35,11 @@ public class WebhookController {
 
 	private static final String PROBLEM_JSON = "application/problem+json";
 	private static final Set<String> NEVER_STORED_HEADERS = Set.of("authorization", "cookie", "proxy-authorization");
+	private static final String IDEMPOTENCY_KEY = "Idempotency-Key";
+	private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 200;
 
-	public record WebhookAccepted(@Schema(requiredMode = REQUIRED) UUID runId) {
+	public record WebhookAccepted(@Schema(requiredMode = REQUIRED) UUID runId,
+			@Schema(requiredMode = REQUIRED) boolean duplicate) {
 	}
 
 	private final WebhookService webhookService;
@@ -52,6 +56,9 @@ public class WebhookController {
 	@PostMapping(path = "/hooks/{token}", consumes = MediaType.APPLICATION_JSON_VALUE)
 	@Operation(summary = "Webhook trigger: queue a run of the workflow that owns this token")
 	@ApiResponse(responseCode = "202", description = "Accepted: the run is queued")
+	@ApiResponse(responseCode = "200", description = "Duplicate delivery (same Idempotency-Key): the run the first delivery created")
+	@ApiResponse(responseCode = "400", description = "Invalid JSON or Idempotency-Key",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "404", description = "Unknown webhook",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "409", description = "Workflow is not active",
@@ -63,8 +70,21 @@ public class WebhookController {
 		trigger.put("body", readJsonBody(request));
 		trigger.put("query", query(request));
 		trigger.put("headers", headers(request));
-		UUID runId = webhookService.accept(token, trigger);
-		return ResponseEntity.accepted().body(new WebhookAccepted(runId));
+		WebhookResult result = webhookService.accept(token, trigger, idempotencyKey(request));
+		WebhookAccepted body = new WebhookAccepted(result.runId(), result.duplicate());
+		return result.duplicate() ? ResponseEntity.ok(body) : ResponseEntity.accepted().body(body);
+	}
+
+	private static String idempotencyKey(HttpServletRequest request) {
+		String key = request.getHeader(IDEMPOTENCY_KEY);
+		if (key == null || key.isBlank()) {
+			return null;
+		}
+		if (key.strip().length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
+			throw new InvalidPayloadException(HttpStatus.BAD_REQUEST,
+					IDEMPOTENCY_KEY + " must be at most " + MAX_IDEMPOTENCY_KEY_LENGTH + " characters");
+		}
+		return key.strip();
 	}
 
 	private Object readJsonBody(HttpServletRequest request) {

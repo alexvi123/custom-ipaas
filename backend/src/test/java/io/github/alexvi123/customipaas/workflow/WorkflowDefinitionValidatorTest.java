@@ -12,6 +12,7 @@ import io.github.alexvi123.customipaas.connector.ConnectorRegistry;
 import io.github.alexvi123.customipaas.connector.ExecutionContext;
 import io.github.alexvi123.customipaas.connector.FieldDefinition;
 import io.github.alexvi123.customipaas.connector.InputValidator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -110,5 +111,47 @@ class WorkflowDefinitionValidatorTest {
 
 		assertThat(errors.get("steps[0].inputs.text")).contains("doesn't run before this step");
 		assertThat(errors).containsEntry("steps[1].inputs.text", "Use {{steps.<key>.output...}}");
+	}
+
+	private static Map<String, Object> stepWith(String key, Object retry, Object timeoutSeconds) {
+		Map<String, Object> step = new HashMap<>(step(key, Map.of("text", "hi")));
+		if (retry != null) {
+			step.put("retry", retry);
+		}
+		if (timeoutSeconds != null) {
+			step.put("timeoutSeconds", timeoutSeconds);
+		}
+		return step;
+	}
+
+	@Test
+	void acceptsRetryAndTimeoutOverridesAndKeepsThemThroughStorage() {
+		WorkflowDefinition definition = validator.validate(workflow(
+				stepWith("custom", Map.of("maxAttempts", 5), 60), step("plain", Map.of("text", "hi"))));
+
+		assertThat(definition.steps().get(0).maxAttempts()).isEqualTo(5);
+		assertThat(definition.steps().get(0).timeoutSeconds()).isEqualTo(60);
+		assertThat(definition.steps().get(1).maxAttempts()).isNull();
+		assertThat(definition.steps().get(1).timeoutSeconds()).isNull();
+		assertThat(WorkflowDefinition.fromStored(definition.toMap())).isEqualTo(definition);
+	}
+
+	@Test
+	void rejectsOutOfRangeRetryAndTimeoutSettings() {
+		Map<String, String> errors = errors(workflow(
+				stepWith("zero", Map.of("maxAttempts", 0), null),
+				stepWith("many", Map.of("maxAttempts", 11), 500),
+				stepWith("text", Map.of("maxAttempts", "3"), 1.5),
+				stepWith("extra", Map.of("maxAttempts", 2, "delay", 5), null),
+				stepWith("notObject", 3, null)));
+
+		assertThat(errors)
+				.containsEntry("steps[0].retry.maxAttempts", "Must be a whole number between 1 and 10")
+				.containsEntry("steps[1].retry.maxAttempts", "Must be a whole number between 1 and 10")
+				.containsEntry("steps[1].timeoutSeconds", "Must be a whole number between 1 and 120")
+				.containsEntry("steps[2].retry.maxAttempts", "Must be a whole number between 1 and 10")
+				.containsEntry("steps[2].timeoutSeconds", "Must be a whole number between 1 and 120")
+				.containsEntry("steps[3].retry.delay", "Unknown property")
+				.containsEntry("steps[4].retry", "Must be an object like {\"maxAttempts\": 3}");
 	}
 }

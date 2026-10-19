@@ -92,6 +92,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry a failed run: it continues from the failed step, with the workflow version it started with */
+        post: operations["retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/connectors/{key}/actions/{action}/test": {
         parameters: {
             query?: never;
@@ -253,6 +270,24 @@ export interface components {
         WebhookAccepted: {
             /** Format: uuid */
             runId: string;
+            duplicate: boolean;
+        };
+        RunSummary: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            workflowId: string;
+            /** @enum {string} */
+            status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED";
+            error?: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            finishedAt?: string;
+            /** Format: int64 */
+            durationMs?: number;
         };
         TestActionRequest: {
             values: {
@@ -287,23 +322,6 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        RunSummary: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            workflowId: string;
-            /** @enum {string} */
-            status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED";
-            error?: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            startedAt?: string;
-            /** Format: date-time */
-            finishedAt?: string;
-            /** Format: int64 */
-            durationMs?: number;
-        };
         RunDetails: {
             /** Format: uuid */
             id: string;
@@ -334,7 +352,7 @@ export interface components {
             connector: string;
             action: string;
             /** @enum {string} */
-            status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "SKIPPED";
+            status: "PENDING" | "RUNNING" | "WAITING_RETRY" | "SUCCEEDED" | "FAILED" | "SKIPPED";
             input?: {
                 [key: string]: unknown;
             };
@@ -342,6 +360,10 @@ export interface components {
                 [key: string]: unknown;
             };
             error?: string;
+            /** Format: int32 */
+            attempt: number;
+            /** Format: date-time */
+            nextRetryAt?: string;
             /** Format: date-time */
             startedAt?: string;
             /** Format: date-time */
@@ -501,6 +523,15 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description Duplicate delivery (same Idempotency-Key): the run the first delivery created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WebhookAccepted"];
+                };
+            };
             /** @description Accepted: the run is queued */
             202: {
                 headers: {
@@ -508,6 +539,15 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["WebhookAccepted"];
+                };
+            };
+            /** @description Invalid JSON or Idempotency-Key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
             /** @description Unknown webhook */
@@ -632,6 +672,46 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["WorkflowDetails"];
+                };
+            };
+        };
+    };
+    retry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The run is queued again */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RunSummary"];
+                };
+            };
+            /** @description Unknown run */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The run has not failed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };

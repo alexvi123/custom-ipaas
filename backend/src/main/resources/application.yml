@@ -30,3 +30,8 @@ ipaas:
     lease: 5m
   webhooks:
     max-body-bytes: 1048576
+  execution:
+    max-attempts: 3
+    base-delay: 10s
+    max-delay: 10m
+    step-timeout: 30s

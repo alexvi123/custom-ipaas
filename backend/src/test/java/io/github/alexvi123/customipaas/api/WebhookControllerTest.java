@@ -3,6 +3,7 @@ package io.github.alexvi123.customipaas.api;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -11,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.alexvi123.customipaas.trigger.WebhookNotFoundException;
+import io.github.alexvi123.customipaas.trigger.WebhookResult;
 import io.github.alexvi123.customipaas.trigger.WebhookService;
 import io.github.alexvi123.customipaas.trigger.WorkflowInactiveException;
 import java.util.Map;
@@ -36,17 +38,18 @@ class WebhookControllerTest {
 	@SuppressWarnings("unchecked")
 	void acceptsJsonAndQueuesARun() throws Exception {
 		UUID runId = UUID.randomUUID();
-		when(webhookService.accept(eq("tok"), anyMap())).thenReturn(runId);
+		when(webhookService.accept(eq("tok"), anyMap(), isNull())).thenReturn(new WebhookResult(runId, false));
 
 		mockMvc.perform(post("/hooks/tok?source=test").contentType(MediaType.APPLICATION_JSON)
 						.header("Authorization", "Bearer secret")
 						.header("X-Event", "order.created")
 						.content("{\"name\": \"Alex\"}"))
 				.andExpect(status().isAccepted())
-				.andExpect(jsonPath("$.runId").value(runId.toString()));
+				.andExpect(jsonPath("$.runId").value(runId.toString()))
+				.andExpect(jsonPath("$.duplicate").value(false));
 
 		ArgumentCaptor<Map<String, Object>> trigger = ArgumentCaptor.forClass(Map.class);
-		verify(webhookService).accept(eq("tok"), trigger.capture());
+		verify(webhookService).accept(eq("tok"), trigger.capture(), isNull());
 		assertThat(trigger.getValue()).containsEntry("body", Map.of("name", "Alex"))
 				.containsEntry("query", Map.of("source", "test"));
 		Map<String, Object> headers = (Map<String, Object>) trigger.getValue().get("headers");
@@ -55,7 +58,7 @@ class WebhookControllerTest {
 
 	@Test
 	void unknownTokenIsA404() throws Exception {
-		when(webhookService.accept(eq("nope"), anyMap())).thenThrow(new WebhookNotFoundException());
+		when(webhookService.accept(eq("nope"), anyMap(), isNull())).thenThrow(new WebhookNotFoundException());
 
 		mockMvc.perform(post("/hooks/nope").contentType(MediaType.APPLICATION_JSON).content("{}"))
 				.andExpect(status().isNotFound());
@@ -63,7 +66,7 @@ class WebhookControllerTest {
 
 	@Test
 	void inactiveWorkflowIsA409() throws Exception {
-		when(webhookService.accept(eq("tok"), anyMap())).thenThrow(new WorkflowInactiveException("Demo"));
+		when(webhookService.accept(eq("tok"), anyMap(), isNull())).thenThrow(new WorkflowInactiveException("Demo"));
 
 		mockMvc.perform(post("/hooks/tok").contentType(MediaType.APPLICATION_JSON).content("{}"))
 				.andExpect(status().isConflict())
@@ -90,5 +93,28 @@ class WebhookControllerTest {
 		mockMvc.perform(post("/hooks/tok").contentType(MediaType.APPLICATION_JSON).content("{oops"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.detail").value("Body must be valid JSON"));
+	}
+
+	@Test
+	void aRepeatedIdempotencyKeyReturnsTheFirstRunWith200() throws Exception {
+		UUID runId = UUID.randomUUID();
+		when(webhookService.accept(eq("tok"), anyMap(), eq("order-1"))).thenReturn(new WebhookResult(runId, true));
+
+		mockMvc.perform(post("/hooks/tok").contentType(MediaType.APPLICATION_JSON)
+						.header("Idempotency-Key", "  order-1 ")
+						.content("{}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.runId").value(runId.toString()))
+				.andExpect(jsonPath("$.duplicate").value(true));
+	}
+
+	@Test
+	void anOverlongIdempotencyKeyIsA400() throws Exception {
+		mockMvc.perform(post("/hooks/tok").contentType(MediaType.APPLICATION_JSON)
+						.header("Idempotency-Key", "k".repeat(201))
+						.content("{}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.detail").value("Idempotency-Key must be at most 200 characters"));
+		verifyNoInteractions(webhookService);
 	}
 }

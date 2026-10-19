@@ -1,11 +1,13 @@
 package io.github.alexvi123.customipaas.connector;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -16,12 +18,14 @@ public class ConnectorService {
 	private final ConnectorRegistry registry;
 	private final ActionExecutor actionExecutor;
 	private final CredentialsProvider credentialsProvider;
+	private final Duration timeout;
 
 	public ConnectorService(ConnectorRegistry registry, ActionExecutor actionExecutor,
-			CredentialsProvider credentialsProvider) {
+			CredentialsProvider credentialsProvider, @Value("${ipaas.execution.step-timeout}") Duration timeout) {
 		this.registry = registry;
 		this.actionExecutor = actionExecutor;
 		this.credentialsProvider = credentialsProvider;
+		this.timeout = timeout;
 	}
 
 	public List<Connector> list() {
@@ -43,7 +47,7 @@ public class ConnectorService {
 	}
 
 	public ActionRun test(String connectorKey, String actionKey, Map<String, Object> values) {
-		ActionRun run = actionExecutor.run(connectorKey, actionKey, values);
+		ActionRun run = actionExecutor.run(connectorKey, actionKey, values, timeout);
 		log.info("Test run {}.{} -> success={} in {} ms", connectorKey, actionKey, run.result().success(), run.durationMs());
 		return run;
 	}

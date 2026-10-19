@@ -1,8 +1,9 @@
 import { Link, useParams } from 'react-router'
-import type { StepRunView } from '../../api/client'
+import type { RunDetails, StepRunView } from '../../api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { useRun } from './api'
+import { useRetryRun, useRun } from './api'
 import { formatDuration, formatTime } from './format'
 import { StatusBadge } from './StatusBadge'
 
@@ -26,6 +27,7 @@ function StepCard({ step }: { step: StepRunView }) {
             {step.connector}.{step.action}
           </span>
           <span className="ml-auto flex items-center gap-2 font-normal">
+            {step.attempt > 1 && <span className="text-xs text-muted-foreground">attempt {step.attempt}</span>}
             <span className="text-xs text-muted-foreground">{formatDuration(step.durationMs)}</span>
             <StatusBadge status={step.status} />
           </span>
@@ -33,10 +35,29 @@ function StepCard({ step }: { step: StepRunView }) {
       </CardHeader>
       <CardContent className="space-y-2">
         {step.error && <p className="text-sm text-destructive">{step.error}</p>}
+        {step.status === 'WAITING_RETRY' && step.nextRetryAt && (
+          <p className="text-sm text-muted-foreground">Next try at {formatTime(step.nextRetryAt)}</p>
+        )}
         {step.input && <Json label="Input" value={step.input} />}
         {step.output && <Json label="Output" value={step.output} />}
       </CardContent>
     </Card>
+  )
+}
+
+function RetryButton({ run }: { run: RunDetails }) {
+  const retry = useRetryRun(run.id, run.workflowId)
+  return (
+    <>
+      <Button size="sm" onClick={() => retry.mutate()} disabled={retry.isPending}>
+        {retry.isPending ? 'Retrying…' : 'Retry run'}
+      </Button>
+      {retry.isError && (
+        <Alert variant="destructive" className="w-full">
+          <AlertDescription>{retry.error.message}</AlertDescription>
+        </Alert>
+      )}
+    </>
   )
 }
 
@@ -53,6 +74,7 @@ export function RunDetailPage() {
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-lg font-medium">Run</h2>
         <StatusBadge status={data.status} />
+        {data.status === 'FAILED' && <RetryButton run={data} />}
         <span className="text-sm text-muted-foreground">
           {formatTime(data.createdAt)} · {formatDuration(data.durationMs)} · workflow version v{data.workflowVersion}
         </span>

@@ -6,6 +6,7 @@ import io.github.alexvi123.customipaas.connector.ConnectorNotFoundException;
 import io.github.alexvi123.customipaas.connector.FieldNotFoundException;
 import io.github.alexvi123.customipaas.connector.InvalidInputException;
 import io.github.alexvi123.customipaas.execution.RunNotFoundException;
+import io.github.alexvi123.customipaas.execution.RunNotRetryableException;
 import io.github.alexvi123.customipaas.trigger.InvalidPayloadException;
 import io.github.alexvi123.customipaas.trigger.WebhookNotFoundException;
 import io.github.alexvi123.customipaas.trigger.WorkflowInactiveException;
@@ -47,6 +48,13 @@ public class ApiExceptionHandler {
 	ProblemDetail inactive(WorkflowInactiveException e) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
 		problem.setTitle("Workflow inactive");
+		return problem;
+	}
+
+	@ExceptionHandler(RunNotRetryableException.class)
+	ProblemDetail notRetryable(RunNotRetryableException e) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+		problem.setTitle("Run not retryable");
 		return problem;
 	}
 

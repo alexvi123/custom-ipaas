@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RunDetails } from '../../api/client'
@@ -27,6 +27,7 @@ const failedRun: RunDetails = {
       status: 'SUCCEEDED',
       input: { method: 'GET', url: 'https://httpbin.org/get' },
       output: { status: 200 },
+      attempt: 1,
       durationMs: 300,
     },
     {
@@ -37,13 +38,17 @@ const failedRun: RunDetails = {
       status: 'FAILED',
       input: { chatId: '999', text: 'Hello Alex' },
       error: 'Telegram: chat not found',
+      attempt: 1,
       durationMs: 120,
     },
   ],
 }
 
-function renderRun(run: RunDetails) {
-  vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(run, 200)))
+function renderRun(
+  run: RunDetails,
+  fetchMock = vi.fn<(request: Request) => Promise<Response>>(async () => jsonResponse(run, 200)),
+) {
+  vi.stubGlobal('fetch', fetchMock)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
@@ -82,6 +87,43 @@ describe('RunDetailPage', () => {
 
     expect(await screen.findByText('RUNNING')).toBeInTheDocument()
     expect(screen.getAllByText('PENDING')).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: 'Retry run' })).not.toBeInTheDocument()
+  })
+
+  it('shows a step that waits for a retry with its attempt number', async () => {
+    renderRun({
+      ...failedRun,
+      status: 'RUNNING',
+      error: undefined,
+      steps: [
+        {
+          ...failedRun.steps[0],
+          status: 'WAITING_RETRY',
+          attempt: 2,
+          error: 'HTTP 503',
+          nextRetryAt: '2026-10-04T10:00:30Z',
+        },
+      ],
+    })
+
+    expect(await screen.findByText('WAITING TO RETRY')).toBeInTheDocument()
+    expect(screen.getByText('attempt 2')).toBeInTheDocument()
+    expect(screen.getByText(/Next try at/)).toBeInTheDocument()
+  })
+
+  it('retries a failed run', async () => {
+    const fetchMock = vi.fn(async (request: Request) =>
+      request.method === 'POST' ? jsonResponse({ ...failedRun, status: 'PENDING' }, 202) : jsonResponse(failedRun, 200),
+    )
+    renderRun(failedRun, fetchMock)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry run' }))
+
+    await waitFor(() => {
+      const posts = fetchMock.mock.calls.filter(([request]) => request.method === 'POST')
+      expect(posts).toHaveLength(1)
+      expect(new URL(posts[0][0].url).pathname).toBe('/api/runs/r1/retry')
+    })
   })
 })
 
